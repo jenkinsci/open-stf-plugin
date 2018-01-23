@@ -23,6 +23,7 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
 class STFConfig implements Serializable {
 
@@ -35,24 +36,27 @@ class STFConfig implements Serializable {
   private String adbPrivateKey;
   private String stfDeviceFilterString;
   private int stfDeviceReleaseWaitTime;
+  private boolean enableRemoteAccessToAllFilteredDevices;
 
   public STFConfig(Boolean useSpecificKey, String adbPublicKey, String adbPrivateKey,
-      JSONObject stfDeviceFilter, int stfDeviceReleaseWaitTime) {
+      JSONObject stfDeviceFilter, int stfDeviceReleaseWaitTime,
+      boolean enableRemoteAccessToAllFilteredDevices) {
 
     this.useSpecificKey = useSpecificKey;
     this.adbPublicKey = adbPublicKey;
     this.adbPrivateKey = adbPrivateKey;
     this.stfDeviceFilterString = stfDeviceFilter.toString();
     this.stfDeviceReleaseWaitTime = stfDeviceReleaseWaitTime;
+    this.enableRemoteAccessToAllFilteredDevices = enableRemoteAccessToAllFilteredDevices;
   }
 
   public Boolean getUseSpecificKey() {
     return useSpecificKey;
   }
 
-  public String reserve() throws STFException, InterruptedException {
+  public List<DeviceListResponseDevices> reserve() throws STFException, InterruptedException {
     JSONObject filter = JSONObject.fromObject(stfDeviceFilterString);
-    DeviceListResponseDevices reservedDevice = null;
+    List<DeviceListResponseDevices> reservedDevice = new ArrayList<DeviceListResponseDevices>();
     filter.put("present", true);
 
     List<DeviceListResponseDevices> deviceList = Utils.getDeviceList(filter);
@@ -89,25 +93,28 @@ class STFConfig implements Serializable {
     Collections.shuffle(deviceList);
 
     for (DeviceListResponseDevices device: deviceList) {
-
       try {
         Utils.reserveSTFDevice(device);
-        reservedDevice = device;
-        break;
+        reservedDevice.add(device);
+        System.out.println("Debug : " + device.serial);
+        if (!this.enableRemoteAccessToAllFilteredDevices) {
+            break;
+        }
       } catch (ApiFailedException ex) {
         //ignore
       }
     }
 
-    if (reservedDevice == null) {
+    if (reservedDevice.size() == 0) {
       throw new ApiFailedException("POST /api/v1/user/devices API failed");
     }
 
-    // Wati for system reflects
-    Thread.sleep(5 * 1000);
-    Utils.remoteConnectSTFDevice(reservedDevice);
-
-    return reservedDevice.serial;
+    for (DeviceListResponseDevices device: reservedDevice){
+        // Wati for system reflects
+        Thread.sleep(5 * 1000);
+        Utils.remoteConnectSTFDevice(device);
+    }
+    return reservedDevice;
   }
 
   public void release(DeviceListResponseDevices device) throws STFException {
