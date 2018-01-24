@@ -61,7 +61,8 @@ public class STFBuildWrapper extends BuildWrapper {
 
   public JSONObject deviceCondition;
   public final int deviceReleaseWaitTime;
-  public final boolean enableRemoteAccessToAllFilteredDevices;
+  public final Boolean enableRemoteAccessToAllFilteredDevices;
+  public final Boolean saveInfoAboutSTFDevices;
   public final List<DeviceLogger> DevicesLoggerArray;
 
   /**
@@ -70,10 +71,12 @@ public class STFBuildWrapper extends BuildWrapper {
    * @param deviceReleaseWaitTime Waiting-time for the STF device to be released
    */
   @DataBoundConstructor
-  public STFBuildWrapper(JSONObject deviceCondition, int deviceReleaseWaitTime, boolean enableRemoteAccessToAllFilteredDevices) {
+  public STFBuildWrapper(JSONObject deviceCondition, int deviceReleaseWaitTime,
+   Boolean enableRemoteAccessToAllFilteredDevices, Boolean saveInfoAboutSTFDevices) {
     this.deviceCondition = deviceCondition;
     this.deviceReleaseWaitTime = deviceReleaseWaitTime;
     this.enableRemoteAccessToAllFilteredDevices = enableRemoteAccessToAllFilteredDevices;
+    this.saveInfoAboutSTFDevices = saveInfoAboutSTFDevices;
     this.DevicesLoggerArray = new ArrayList<DeviceLogger>();
   }
 
@@ -172,7 +175,8 @@ public class STFBuildWrapper extends BuildWrapper {
         DeviceListResponseDevices reservedJobDevice = Utils.getSTFDeviceById(device.serial);
         remote.setDevice(reservedJobDevice);
         log(logger, Messages.SHOW_RESERVED_DEVICE_INFO(reservedJobDevice.name, reservedJobDevice.serial,
-            reservedJobDevice.sdk, reservedJobDevice.version));
+            reservedJobDevice.remoteConnectUrl, reservedJobDevice.sdk, reservedJobDevice.version,
+            reservedJobDevice.provider.name));
         build.addAction(new STFReservedDeviceAction(descriptor.stfApiEndpoint, reservedJobDevice));
       }
     } catch (STFException ex) {
@@ -304,11 +308,21 @@ public class STFBuildWrapper extends BuildWrapper {
         disconnect(remote, device.remoteConnectUrl);
     }
 
+    for (DeviceListResponseDevices device: remote.getDevice()){
+        try {
+          stfConfig.release(device);
+        } catch (STFException ex) {
+         log(remote.logger(), ex.getMessage());
+        }
+    }
+
+    // Save information about used devices for further investigation.
     try {
-      for (DeviceListResponseDevices device: remote.getDevice())
-      stfConfig.release(device);
-    } catch (STFException ex) {
-      log(remote.logger(), ex.getMessage());
+        if (saveInfoAboutSTFDevices) {
+            saveSTFDevicesInfo(remote.getDevice(), artifactsDir);
+        }
+    } catch(Exception ex) {
+        log(remote.logger(), ex.getMessage());
     }
 
     // Clean up logging process
@@ -334,7 +348,8 @@ public class STFBuildWrapper extends BuildWrapper {
           // Archive the logs
           if (DevicesLoggerArray.get(i).getLogcatFile().length() != 0) {
             log(remote.logger(), hudson.plugins.android_emulator.Messages.ARCHIVING_LOG());
-            DevicesLoggerArray.get(i).getLogcatFile().copyTo(new FilePath(artifactsDir).child(DevicesLoggerArray.get(i).getLogcatFile().getName()));
+            DevicesLoggerArray.get(i).getLogcatFile().copyTo(new FilePath(artifactsDir)
+                .child("logcat_" + DevicesLoggerArray.get(i).getLogcatArgs().split(" ")[1] + ".log"));
           }
           DevicesLoggerArray.get(i).getLogcatFile().delete();
         }
@@ -414,6 +429,23 @@ public class STFBuildWrapper extends BuildWrapper {
     return false;
   }
 
+  private void saveSTFDevicesInfo(List<DeviceListResponseDevices> STFDeviceList, File artifactsDir) throws Exception {
+    JSONObject jSTFDevices = new JSONObject();
+    for (DeviceListResponseDevices device: STFDeviceList) {
+        JSONObject jBody = new JSONObject();
+        jBody.accumulate("serial", device.serial);
+        jBody.accumulate("provider", device.provider.name);
+        jBody.accumulate("name", device.name);
+        jBody.accumulate("sdk", device.sdk);
+        jBody.accumulate("version", device.version);
+        jSTFDevices.accumulate(device.remoteConnectUrl, jBody);
+    }
+
+    FilePath deviceInfoFilePath = new FilePath(artifactsDir).createTextTempFile("STFDeviceInfo", ".json", "", false);
+    deviceInfoFilePath.write(jSTFDevices.toString(), "utf-8");
+    deviceInfoFilePath.copyTo(new FilePath(artifactsDir).child("STFDeviceInfo.json"));
+  }
+
   @Extension
   public static final class DescriptorImpl extends BuildWrapperDescriptor {
 
@@ -455,6 +487,7 @@ public class STFBuildWrapper extends BuildWrapper {
     public BuildWrapper newInstance(StaplerRequest req, JSONObject formData) throws FormException {
       int deviceReleaseWaitTime = 0;
       Boolean enableRemoteAccessToAllFilteredDevices = false;
+      Boolean saveInfoAboutSTFDevices = true;
       JSONObject deviceCondition = new JSONObject();
 
       try {
@@ -476,6 +509,14 @@ public class STFBuildWrapper extends BuildWrapper {
         formData.discard("enableRemoteAccessToAllFilteredDevices");
       }
 
+      try {
+        saveInfoAboutSTFDevices  = Boolean.valueOf(formData.getString("saveInfoAboutSTFDevices"));
+      } catch (NumberFormatException ex) {
+        // ignore
+      } finally {
+        formData.discard("saveInfoAboutSTFDevices");
+      }
+
       JSONArray conditionArray = formData.optJSONArray("condition");
       if (conditionArray != null) {
         for (Object conditionObj: conditionArray) {
@@ -491,7 +532,8 @@ public class STFBuildWrapper extends BuildWrapper {
         }
       }
 
-      return new STFBuildWrapper(deviceCondition, deviceReleaseWaitTime, enableRemoteAccessToAllFilteredDevices);
+      return new STFBuildWrapper(deviceCondition, deviceReleaseWaitTime, enableRemoteAccessToAllFilteredDevices,
+        saveInfoAboutSTFDevices);
     }
 
     @Override
