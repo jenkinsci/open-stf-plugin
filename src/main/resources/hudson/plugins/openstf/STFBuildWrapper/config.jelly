@@ -39,6 +39,12 @@
                   <f:entry title="${%Wait time for a device to be released[min]}">
                     <f:number name="open-stf.deviceReleaseWaitTime" value="${instance.deviceReleaseWaitTime}"/>
                   </f:entry>
+                  <f:entry title="${%Reserve all filtered devices [Limited functionality] }">
+                    <f:checkbox name="open-stf.enableRemoteAccessToAllFilteredDevices" checked="${instance.enableRemoteAccessToAllFilteredDevices}" tooltip="If checked, Hudson will reserve all filtered devices. This option is not compatible with android-emulator.If you choose 'Run Android monkey tester' functionality, monkey tester job will be executed only on one device"/>
+                  </f:entry>
+                  <f:entry title="${%Save information about used STF Devices }">
+                    <f:checkbox name="open-stf.saveInfoAboutSTFDevices" checked="${instance.saveInfoAboutSTFDevices}" tooltip="If checked, information about used in the job stf devices will be stored under STFDeviceInfo.json file"/>
+                  </f:entry>
                 </table>
               </f:block>
             </f:advanced>

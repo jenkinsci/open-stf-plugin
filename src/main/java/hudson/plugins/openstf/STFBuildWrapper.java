@@ -46,6 +46,7 @@ import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
 
 public class STFBuildWrapper extends BuildWrapper {
 
@@ -60,6 +61,9 @@ public class STFBuildWrapper extends BuildWrapper {
 
   public transient JSONObject deviceCondition;
   public final int deviceReleaseWaitTime;
+  public final Boolean enableRemoteAccessToAllFilteredDevices;
+  public final Boolean saveInfoAboutSTFDevices;
+  public final List<DeviceLogger> DevicesLoggerArray;
 
   /**
    * Allocates a STFBuildWrapper object.
@@ -67,9 +71,13 @@ public class STFBuildWrapper extends BuildWrapper {
    * @param deviceReleaseWaitTime Waiting-time for the STF device to be released
    */
   @DataBoundConstructor
-  public STFBuildWrapper(JSONObject deviceCondition, int deviceReleaseWaitTime) {
+  public STFBuildWrapper(JSONObject deviceCondition, int deviceReleaseWaitTime,
+   Boolean enableRemoteAccessToAllFilteredDevices, Boolean saveInfoAboutSTFDevices) {
     this.deviceCondition = deviceCondition;
     this.deviceReleaseWaitTime = deviceReleaseWaitTime;
+    this.enableRemoteAccessToAllFilteredDevices = enableRemoteAccessToAllFilteredDevices;
+    this.saveInfoAboutSTFDevices = saveInfoAboutSTFDevices;
+    this.DevicesLoggerArray = new ArrayList<DeviceLogger>();
   }
 
   @Override
@@ -145,9 +153,8 @@ public class STFBuildWrapper extends BuildWrapper {
         androidSdk.hasKnownRoot()
             ? androidSdk.getSdkRoot() : hudson.plugins.android_emulator.Messages.USING_PATH();
     log(logger, hudson.plugins.android_emulator.Messages.USING_SDK(displayHome));
-
     STFConfig stfConfig = new STFConfig(useSpecificKey, adbPublicKey, adbPrivateKey,
-        deviceFilter, deviceReleaseWaitTime);
+        deviceFilter, deviceReleaseWaitTime, this.enableRemoteAccessToAllFilteredDevices);
 
     return doSetup(build, launcher, listener, androidSdk, stfConfig);
   }
@@ -162,18 +169,22 @@ public class STFBuildWrapper extends BuildWrapper {
         new AndroidRemoteContext(build, launcher, listener, androidSdk);
 
     try {
-      String reservedDeviceId = stfConfig.reserve();
-      DeviceListResponseDevices device = Utils.getSTFDeviceById(reservedDeviceId);
-      remote.setDevice(device);
-      log(logger, Messages.SHOW_RESERVED_DEVICE_INFO(device.name, device.serial,
-          device.sdk, device.version));
-      build.addAction(new STFReservedDeviceAction(descriptor.stfApiEndpoint, device));
-    } catch (STFException ex) {
-      log(logger, ex.getMessage());
-      build.setResult(Result.NOT_BUILT);
-      if (remote.getDevice() != null) {
-        cleanUp(stfConfig, remote);
+      List<DeviceListResponseDevices>  reservedDevices = stfConfig.reserve();
+      log(logger, Messages.SHOW_TOTAL_RESERVED_AMOUNT_OF_DEVICES(Integer.toString(reservedDevices.size())));
+      for (DeviceListResponseDevices device: reservedDevices){
+        DeviceListResponseDevices reservedJobDevice = Utils.getSTFDeviceById(device.serial);
+        remote.setDevice(reservedJobDevice);
+        log(logger, Messages.SHOW_RESERVED_DEVICE_INFO(reservedJobDevice.name, reservedJobDevice.serial,
+            reservedJobDevice.remoteConnectUrl, reservedJobDevice.sdk, reservedJobDevice.version,
+            reservedJobDevice.provider.name));
+        build.addAction(new STFReservedDeviceAction(descriptor.stfApiEndpoint, reservedJobDevice));
       }
+    } catch (STFException ex) {
+          log(logger, ex.getMessage());
+          build.setResult(Result.NOT_BUILT);
+          if (remote.getDevice().size() != 0) {
+            cleanUp(stfConfig, remote);
+          }
       return null;
     }
 
@@ -207,14 +218,15 @@ public class STFBuildWrapper extends BuildWrapper {
       cleanUp(stfConfig, remote);
       return null;
     }
-    final FilePath logcatFile = workspace.createTextTempFile("logcat_", ".log", "", false);
-    final OutputStream logcatStream = logcatFile.write();
-    final String logcatArgs = String.format("-s %s logcat -v time", remote.serial());
-    final Proc logWriter = remote.getToolProcStarter(Tool.ADB, logcatArgs)
-        .stdout(logcatStream).stderr(new NullStream()).start();
+
+    for (DeviceListResponseDevices device: remote.getDevice()) {
+        DevicesLoggerArray.add(new DeviceLogger(remote, device.remoteConnectUrl, workspace));
+    }
 
     // Make sure we're still connected
-    connect(remote);
+    for (DeviceListResponseDevices device: remote.getDevice()){
+        connect(remote, device.remoteConnectUrl);
+    }
 
     log(logger, Messages.WAITING_FOR_STF_DEVICE_CONNECT_COMPLETION());
     int connectTimeout = STF_DEVICE_CONNECT_COMPLETE_TIMEOUT_MS;
@@ -233,10 +245,16 @@ public class STFBuildWrapper extends BuildWrapper {
     return new Environment() {
       @Override
       public void buildEnvVars(Map<String, String> env) {
-        env.put("ANDROID_SERIAL", remote.serial());
-        env.put("ANDROID_AVD_DEVICE", remote.serial());
-        env.put("ANDROID_ADB_SERVER_PORT", Integer.toString(remote.adbServerPort()));
-        env.put("ANDROID_TMP_LOGCAT_FILE", logcatFile.getRemote());
+        for (DeviceListResponseDevices device: remote.getDevice()) {
+            env.put("ANDROID_SERIAL", device.remoteConnectUrl);
+            env.put("ANDROID_AVD_DEVICE", device.remoteConnectUrl);
+            env.put("ANDROID_ADB_SERVER_PORT", Integer.toString(remote.adbServerPort()));
+            break;
+        }
+        for (int i =0 ; i < DevicesLoggerArray.size(); i++) {
+            env.put("ANDROID_TMP_LOGCAT_FILE", DevicesLoggerArray.get(i).getLogcatFile().getRemote());
+            break;
+        }
         if (androidSdk.hasKnownRoot()) {
           env.put("JENKINS_ANDROID_HOME", androidSdk.getSdkRoot());
           env.put("ANDROID_HOME", androidSdk.getSdkRoot());
@@ -252,24 +270,24 @@ public class STFBuildWrapper extends BuildWrapper {
       public boolean tearDown(AbstractBuild build, BuildListener listener)
           throws IOException, InterruptedException {
 
-        cleanUp(stfConfig, remote, logWriter, logcatFile, logcatStream, artifactsDir);
+        cleanUp(stfConfig, remote, DevicesLoggerArray, artifactsDir);
         return true;
       }
     };
   }
 
-  private static void connect(AndroidRemoteContext remote)
+  private static void connect(AndroidRemoteContext remote, String remote_serial)
       throws IOException, InterruptedException {
 
     ArgumentListBuilder adbConnectCmd = remote
-        .getToolCommand(Tool.ADB, "connect " + remote.serial());
+        .getToolCommand(Tool.ADB, "connect " + remote_serial);
     remote.getProcStarter(adbConnectCmd).start()
         .joinWithTimeout(5L, TimeUnit.SECONDS, remote.launcher().getListener());
   }
 
-  private static void disconnect(AndroidRemoteContext remote)
+  private static void disconnect(AndroidRemoteContext remote, String remote_serial)
       throws IOException, InterruptedException {
-    final String args = "disconnect " + remote.serial();
+    final String args = "disconnect " + remote_serial;
     ArgumentListBuilder adbDisconnectCmd = remote.getToolCommand(Tool.ADB, args);
     remote.getProcStarter(adbDisconnectCmd).start()
         .joinWithTimeout(5L, TimeUnit.SECONDS, remote.launcher().getListener());
@@ -277,46 +295,64 @@ public class STFBuildWrapper extends BuildWrapper {
 
   private void cleanUp(STFConfig stfConfig, AndroidRemoteContext remote)
     throws IOException, InterruptedException {
-    cleanUp(stfConfig, remote, null, null, null, null);
+    cleanUp(stfConfig, remote, new ArrayList<DeviceLogger>(), null);
   }
 
-  private void cleanUp(STFConfig stfConfig, AndroidRemoteContext remote, Proc logcatProcess,
-      FilePath logcatFile, OutputStream logcatStream, File artifactsDir)
+  private void cleanUp(STFConfig stfConfig, AndroidRemoteContext remote, List<DeviceLogger> DevicesLoggerArray,
+   File artifactsDir)
       throws IOException, InterruptedException {
 
     // Disconnect STF device from adb
-    disconnect(remote);
 
+    for (DeviceListResponseDevices device: remote.getDevice()){
+        disconnect(remote, device.remoteConnectUrl);
+    }
+
+    for (DeviceListResponseDevices device: remote.getDevice()){
+        try {
+          stfConfig.release(device);
+        } catch (STFException ex) {
+         log(remote.logger(), ex.getMessage());
+        }
+    }
+
+    // Save information about used devices for further investigation.
     try {
-      stfConfig.release(remote.getDevice());
-    } catch (STFException ex) {
-      log(remote.logger(), ex.getMessage());
+        if (saveInfoAboutSTFDevices) {
+            saveSTFDevicesInfo(remote.getDevice(), artifactsDir);
+        }
+    } catch(Exception ex) {
+        log(remote.logger(), ex.getMessage());
     }
 
     // Clean up logging process
-    if (logcatProcess != null) {
-      if (logcatProcess.isAlive()) {
-        // This should have stopped when the emulator was,
-        // but if not attempt to kill the process manually.
-        // First, give it a final chance to finish cleanly.
-        Thread.sleep(3 * 1000);
-        if (logcatProcess.isAlive()) {
-          hudson.plugins.android_emulator.util.Utils
-              .killProcess(logcatProcess, KILL_PROCESS_TIMEOUT_MS);
-        }
-      }
-      try {
-        logcatStream.close();
-      } catch (Exception ex) {
-        // ignore
-      }
+    for( int i=0; i < DevicesLoggerArray.size(); i++){
 
-      // Archive the logs
-      if (logcatFile.length() != 0) {
-        log(remote.logger(), hudson.plugins.android_emulator.Messages.ARCHIVING_LOG());
-        logcatFile.copyTo(new FilePath(artifactsDir).child("logcat.txt"));
-      }
-      logcatFile.delete();
+        if (DevicesLoggerArray.get(i).getLogWriter() != null) {
+          if (DevicesLoggerArray.get(i).getLogWriter().isAlive()) {
+            // This should have stopped when the emulator was,
+            // but if not attempt to kill the process manually.
+            // First, give it a final chance to finish cleanly.
+            Thread.sleep(3 * 1000);
+            if (DevicesLoggerArray.get(i).getLogWriter().isAlive()) {
+              hudson.plugins.android_emulator.util.Utils
+                  .killProcess(DevicesLoggerArray.get(i).getLogWriter(), KILL_PROCESS_TIMEOUT_MS);
+            }
+          }
+              try {
+            DevicesLoggerArray.get(i).logcatStream.close();
+          } catch (Exception ex) {
+            // ignore
+          }
+
+          // Archive the logs
+          if (DevicesLoggerArray.get(i).getLogcatFile().length() != 0) {
+            log(remote.logger(), hudson.plugins.android_emulator.Messages.ARCHIVING_LOG());
+            DevicesLoggerArray.get(i).getLogcatFile().copyTo(new FilePath(artifactsDir)
+                .child("logcat_" + DevicesLoggerArray.get(i).getLogcatArgs().split(" ")[1] + ".log"));
+          }
+          DevicesLoggerArray.get(i).getLogcatFile().delete();
+        }
     }
 
     ArgumentListBuilder adbKillCmd = remote.getToolCommand(Tool.ADB, "kill-server");
@@ -363,18 +399,21 @@ public class STFBuildWrapper extends BuildWrapper {
             Computer.currentComputer().getSystemProperties().get("line.separator").toString();
         for (String line: devicesResult.split(lineSeparator)) {
           if (line != null) {
-            if (line.contains(remote.serial()) && line.contains("device")) {
-              return true;
-            }
+              for (DeviceListResponseDevices device: remote.getDevice()){
 
-            if (line.contains(remote.serial()) && line.contains("unauthorized")) {
-                unauthorized++;
-
-                //Show without rising exception, that we can't authorize device
-                if (unauthorized == 4 && !shownUnauthorizedOnce) {
-                    log(remote.logger(), Messages.DEVICE_UNAUTHORIZED());
-                    shownUnauthorizedOnce=true;
+                if (line.contains(device.remoteConnectUrl) && line.contains("device")) {
+                  return true;
                 }
+
+                if (line.contains(device.remoteConnectUrl) && line.contains("unauthorized")) {
+                    unauthorized++;
+
+                    //Show without rising exception, that we can't authorize device
+                    if (unauthorized == 4 && !shownUnauthorizedOnce) {
+                        log(remote.logger(), Messages.DEVICE_UNAUTHORIZED());
+                        shownUnauthorizedOnce=true;
+                    }
+              }
             }
           }
         }
@@ -388,6 +427,23 @@ public class STFBuildWrapper extends BuildWrapper {
       ex.printStackTrace(remote.logger());
     }
     return false;
+  }
+
+  private void saveSTFDevicesInfo(List<DeviceListResponseDevices> STFDeviceList, File artifactsDir) throws Exception {
+    JSONObject jSTFDevices = new JSONObject();
+    for (DeviceListResponseDevices device: STFDeviceList) {
+        JSONObject jBody = new JSONObject();
+        jBody.accumulate("serial", device.serial);
+        jBody.accumulate("provider", device.provider.name);
+        jBody.accumulate("name", device.name);
+        jBody.accumulate("sdk", device.sdk);
+        jBody.accumulate("version", device.version);
+        jSTFDevices.accumulate(device.remoteConnectUrl, jBody);
+    }
+
+    FilePath deviceInfoFilePath = new FilePath(artifactsDir).createTextTempFile("STFDeviceInfo", ".json", "", false);
+    deviceInfoFilePath.write(jSTFDevices.toString(), "utf-8");
+    deviceInfoFilePath.copyTo(new FilePath(artifactsDir).child("STFDeviceInfo.json"));
   }
 
   @Extension
@@ -430,6 +486,8 @@ public class STFBuildWrapper extends BuildWrapper {
     @Override
     public BuildWrapper newInstance(StaplerRequest req, JSONObject formData) throws FormException {
       int deviceReleaseWaitTime = 0;
+      Boolean enableRemoteAccessToAllFilteredDevices = false;
+      Boolean saveInfoAboutSTFDevices = true;
       JSONObject deviceCondition = new JSONObject();
 
       try {
@@ -441,6 +499,22 @@ public class STFBuildWrapper extends BuildWrapper {
         // ignore
       } finally {
         formData.discard("deviceReleaseWaitTime");
+      }
+
+      try {
+        enableRemoteAccessToAllFilteredDevices = Boolean.valueOf(formData.getString("enableRemoteAccessToAllFilteredDevices"));
+      } catch (NumberFormatException ex) {
+        // ignore
+      } finally {
+        formData.discard("enableRemoteAccessToAllFilteredDevices");
+      }
+
+      try {
+        saveInfoAboutSTFDevices  = Boolean.valueOf(formData.getString("saveInfoAboutSTFDevices"));
+      } catch (NumberFormatException ex) {
+        // ignore
+      } finally {
+        formData.discard("saveInfoAboutSTFDevices");
       }
 
       JSONArray conditionArray = formData.optJSONArray("condition");
@@ -458,7 +532,8 @@ public class STFBuildWrapper extends BuildWrapper {
         }
       }
 
-      return new STFBuildWrapper(deviceCondition, deviceReleaseWaitTime);
+      return new STFBuildWrapper(deviceCondition, deviceReleaseWaitTime, enableRemoteAccessToAllFilteredDevices,
+        saveInfoAboutSTFDevices);
     }
 
     @Override

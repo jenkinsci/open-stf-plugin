@@ -19,6 +19,8 @@ import org.jvnet.hudson.plugins.port_allocator.PortAllocationManager;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.List;
+import java.util.ArrayList;
 
 public class AndroidRemoteContext {
   /** Interval during which an emulator command should complete. */
@@ -28,12 +30,12 @@ public class AndroidRemoteContext {
   protected static final int PORT_RANGE_END = 9999;
 
   private int adbServerPort;
-  protected String serial;
+  protected List<String> serial;
 
   protected PortAllocationManager portAllocator;
 
   private AndroidSdk sdk;
-  private DeviceListResponseDevices stfDevice = null;
+  private List<DeviceListResponseDevices> stfDevice = null;
 
   protected AbstractBuild<?, ?> build;
   private BuildListener listener;
@@ -46,6 +48,8 @@ public class AndroidRemoteContext {
     this.listener = listener;
     this.launcher = launcher;
     this.sdk = sdk;
+    this.serial = new ArrayList<String>();
+    this.stfDevice = new ArrayList<DeviceListResponseDevices>();
 
     final Computer computer = Computer.currentComputer();
 
@@ -65,7 +69,7 @@ public class AndroidRemoteContext {
     return adbServerPort;
   }
 
-  public String serial() {
+  public List<String> getSerial() {
     return serial;
   }
 
@@ -148,12 +152,12 @@ public class AndroidRemoteContext {
     return getProcStarter(Utils.getToolCommand(sdk, launcher.isUnix(), new SdkCliCommand( tool, args)));
   }
 
-  public DeviceListResponseDevices getDevice() {
+  public List<DeviceListResponseDevices> getDevice() {
     return stfDevice;
   }
 
   public void setDevice(DeviceListResponseDevices device) {
-    stfDevice = device;
-    serial = device.remoteConnectUrl;
+    stfDevice.add(device);
+    serial.add(device.remoteConnectUrl);
   }
 }
