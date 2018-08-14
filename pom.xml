@@ -32,7 +32,7 @@
   </licenses>
 
   <properties>
-    <jenkins.version>2.32</jenkins.version>
+    <jenkins.version>2.107.3</jenkins.version>
   </properties>
 
   <dependencies>

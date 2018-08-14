@@ -18,3 +18,5 @@ hs_err_pid*
 target
 work
 .DS_Store
+
+/db.json

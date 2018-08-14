@@ -23,6 +23,8 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 class STFConfig implements Serializable {
 
@@ -33,16 +35,16 @@ class STFConfig implements Serializable {
   private Boolean useSpecificKey;
   private String adbPublicKey;
   private String adbPrivateKey;
-  private String stfDeviceFilterString;
+  private Map<String, String> stfDeviceFilter;
   private int stfDeviceReleaseWaitTime;
 
   public STFConfig(Boolean useSpecificKey, String adbPublicKey, String adbPrivateKey,
-      JSONObject stfDeviceFilter, int stfDeviceReleaseWaitTime) {
+      Map<String, String> stfDeviceFilter, int stfDeviceReleaseWaitTime) {
 
     this.useSpecificKey = useSpecificKey;
     this.adbPublicKey = adbPublicKey;
     this.adbPrivateKey = adbPrivateKey;
-    this.stfDeviceFilterString = stfDeviceFilter.toString();
+    this.stfDeviceFilter = stfDeviceFilter;
     this.stfDeviceReleaseWaitTime = stfDeviceReleaseWaitTime;
   }
 
@@ -51,9 +53,9 @@ class STFConfig implements Serializable {
   }
 
   public String reserve() throws STFException, InterruptedException {
-    JSONObject filter = JSONObject.fromObject(stfDeviceFilterString);
+    Map<String, String> filter = this.stfDeviceFilter;
     DeviceListResponseDevices reservedDevice = null;
-    filter.put("present", true);
+    filter.put("present", "true");
 
     List<DeviceListResponseDevices> deviceList = Utils.getDeviceList(filter);
 

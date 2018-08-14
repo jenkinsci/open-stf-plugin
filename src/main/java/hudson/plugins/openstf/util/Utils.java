@@ -26,11 +26,28 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 public class Utils {
+
+
+  /**
+   * Convert DeviceListResponseDevices class instance to Map<String, String> for serializability on Jenkins.
+   * This used for STFReservedDeviceAction.
+   * @param device DeviceListResponseDevices class instance.
+   * @return device information converted as Map<String, String> instalce.
+   */
+  public static Map<String, String> convertDeviceToMap(DeviceListResponseDevices device) {
+    Map<String, String> convertedDevice = new HashMap<String, String>();
+    convertedDevice.put("image", device.image);
+    convertedDevice.put("name", device.name);
+    convertedDevice.put("version", device.version);
+    convertedDevice.put("sdk", device.sdk);
+    return convertedDevice;
+  }
 
   /**
    * Expands the variable in the given string to its value in the variables available to this build.
@@ -42,17 +59,17 @@ public class Utils {
      <tt>${foo}</tt>.
    * @return  The given json, with applicable variable expansions done.
    */
-  public static JSONObject expandVariables(EnvVars envVars, Map<String,String> buildVars,
-        JSONObject filter) {
+  public static Map<String, String> expandVariables(EnvVars envVars, Map<String, String> buildVars,
+        Map<String, String> filter) {
 
-    JSONObject expandedFilter = JSONObject.fromObject(filter);
-    final Map<String,String> vars = new HashMap<String,String>(envVars);
+    Map<String, String> expandedFilter = new HashMap<String, String>();
+    final Map<String, String> vars = new HashMap<String, String>(envVars);
     if (buildVars != null) {
       // Build-specific variables, if any, take priority over environment variables
       vars.putAll(buildVars);
     }
 
-    for (Iterator<String> fi = filter.keys(); fi.hasNext(); ) {
+    for (Iterator<String> fi = filter.keySet().iterator(); fi.hasNext(); ) {
       String key = fi.next();
       String value = filter.get(key).toString();
 
@@ -149,7 +166,7 @@ public class Utils {
    * @return List of STF devices that meet the filter.
    * @throws hudson.plugins.openstf.exception.ApiFailedException Failed STF API request.
    */
-  public static List<DeviceListResponseDevices> getDeviceList(JSONObject filter)
+  public static List<DeviceListResponseDevices> getDeviceList(Map<String, String> filter)
       throws ApiFailedException {
 
     List<DeviceListResponseDevices> deviceList;
@@ -164,7 +181,7 @@ public class Utils {
     }
 
     if (filter != null) {
-      for (Iterator<String> fi = filter.keys(); fi.hasNext(); ) {
+      for (Iterator<String> fi = filter.keySet().iterator(); fi.hasNext(); ) {
         String key = fi.next();
         String value = filter.get(key).toString();
 
@@ -323,8 +340,8 @@ public class Utils {
    * @param filter The device condition set.
    * @return Whether the Regex value looks valid or not.
   **/
-  public static boolean validateDeviceFilter(JSONObject filter) {
-    for (Iterator<String> fi = filter.keys(); fi.hasNext(); ) {
+  public static boolean validateDeviceFilter(Map<String, String> filter) {
+    for (Iterator<String> fi = filter.keySet().iterator(); fi.hasNext(); ) {
       String key = fi.next();
       String value = filter.get(key).toString();
 

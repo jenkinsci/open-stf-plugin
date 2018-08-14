@@ -69,16 +69,16 @@ public class UtilsTest {
     EnvVars envVers = new EnvVars();
     envVers.put("MODEL", "HTL22");
 
-    Map<String,String> buildVers = new HashMap<String,String>();
+    Map<String,String> buildVers = new HashMap<String, String>();
     buildVers.put("VERSION", "4.1.2");
 
-    JSONObject filter = new JSONObject();
+    Map<String, String> filter = new HashMap<String, String>();
     filter.put("model", "$MODEL");
     filter.put("version", "$VERSION");
 
-    JSONObject expandedFilter = Utils.expandVariables(envVers, buildVers, filter);
-    assertEquals("HTL22", expandedFilter.getString("model"));
-    assertEquals("4.1.2", expandedFilter.getString("version"));
+    Map<String, String> expandedFilter = Utils.expandVariables(envVers, buildVers, filter);
+    assertEquals("HTL22", expandedFilter.get("model"));
+    assertEquals("4.1.2", expandedFilter.get("version"));
   }
 
   @Test
@@ -111,9 +111,9 @@ public class UtilsTest {
   public void testGetDeviceListWithFilter() throws Exception {
     setupSTFApiClient();
 
-    JSONObject filter = new JSONObject();
+    Map<String, String> filter = new HashMap<String, String>();
     filter.put("owner", "null");
-    filter.put("present", true);
+    filter.put("present", "true");
 
     List<DeviceListResponseDevices> deviceList = Utils.getDeviceList(filter);
     assertEquals(1, deviceList.size());

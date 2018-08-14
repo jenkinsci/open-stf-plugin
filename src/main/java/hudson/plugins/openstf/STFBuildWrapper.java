@@ -45,6 +45,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 public class STFBuildWrapper extends BuildWrapper {
@@ -58,7 +59,7 @@ public class STFBuildWrapper extends BuildWrapper {
   private DescriptorImpl descriptor;
   private AndroidEmulator.DescriptorImpl emulatorDescriptor;
 
-  public transient JSONObject deviceCondition;
+  public Map<String, String> deviceCondition;
   public final int deviceReleaseWaitTime;
 
   /**
@@ -67,7 +68,7 @@ public class STFBuildWrapper extends BuildWrapper {
    * @param deviceReleaseWaitTime Waiting-time for the STF device to be released
    */
   @DataBoundConstructor
-  public STFBuildWrapper(JSONObject deviceCondition, int deviceReleaseWaitTime) {
+  public STFBuildWrapper(Map<String, String> deviceCondition, int deviceReleaseWaitTime) {
     this.deviceCondition = deviceCondition;
     this.deviceReleaseWaitTime = deviceReleaseWaitTime;
   }
@@ -97,7 +98,7 @@ public class STFBuildWrapper extends BuildWrapper {
     Boolean useSpecificKey = descriptor.useSpecificKey;
     String adbPublicKey = descriptor.adbPublicKey;
     String adbPrivateKey = descriptor.adbPrivateKey;
-    JSONObject deviceFilter = Utils.expandVariables(envVars, buildVars, this.deviceCondition);
+    Map<String, String> deviceFilter = Utils.expandVariables(envVars, buildVars, this.deviceCondition);
     boolean ignoreCertError = descriptor.ignoreCertError;
 
     if (!Utils.validateDeviceFilter(deviceFilter)) {
@@ -167,7 +168,7 @@ public class STFBuildWrapper extends BuildWrapper {
       remote.setDevice(device);
       log(logger, Messages.SHOW_RESERVED_DEVICE_INFO(device.name, device.serial,
           device.sdk, device.version));
-      build.addAction(new STFReservedDeviceAction(descriptor.stfApiEndpoint, device));
+      build.addAction(new STFReservedDeviceAction(descriptor.stfApiEndpoint, Utils.convertDeviceToMap(device)));
     } catch (STFException ex) {
       log(logger, ex.getMessage());
       build.setResult(Result.NOT_BUILT);
@@ -430,7 +431,7 @@ public class STFBuildWrapper extends BuildWrapper {
     @Override
     public BuildWrapper newInstance(StaplerRequest req, JSONObject formData) throws FormException {
       int deviceReleaseWaitTime = 0;
-      JSONObject deviceCondition = new JSONObject();
+      Map<String, String> deviceCondition = new HashMap<String, String>();
 
       try {
         deviceReleaseWaitTime = Integer.parseInt(formData.getString("deviceReleaseWaitTime"));
@@ -526,11 +527,12 @@ public class STFBuildWrapper extends BuildWrapper {
     /**
      * Gets a list of devices that match the given filter, as JSON Array.
      * This method called by javascript in jelly.
-     * @param filter Conditions of the STF device you want to get.
+     * @param filterJSON Conditions of the STF device you want to get.
      * @return List of STF devices that meet the filter.
      */
     @JavaScriptMethod
-    public JSONArray getDeviceListJSON(JSONObject filter) {
+    public JSONArray getDeviceListJSON(JSONObject filterJSON) {
+      Map<String, String> filter = (Map<String, String>) JSONObject.toBean(filterJSON, Map.class);
 
       if (Util.fixEmpty(stfApiEndpoint) == null || Util.fixEmpty(stfToken) == null) {
         return new JSONArray();

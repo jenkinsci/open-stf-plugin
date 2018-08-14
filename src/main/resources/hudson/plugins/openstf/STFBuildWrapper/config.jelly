@@ -1,4 +1,4 @@
-<?jelly escape-by-default='true'?> 
+<?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
 
   <script type="text/javascript" src="${rootURL}/plugin/open-stf/js/vendor/jquery.balloon.min.js" />
@@ -16,7 +16,7 @@
                     <f:select value="${condition.toString()}" />
                   </f:entry>
                   <f:entry title="Value" field="conditionValue" help="/plugin/open-stf/help-conditionValue.html">
-                    <f:combobox value="${instance.deviceCondition.optString(condition.toString())}" clazz="stf-filter"
+                    <f:combobox value="${instance.deviceCondition.get(condition.toString())}" clazz="stf-filter"
                         checkUrl="'descriptorByName/STFBuildWrapper/checkConditionValue?value='+escape(this.value)"/>
                   </f:entry>
                   <f:entry><f:repeatableDeleteButton /></f:entry>
