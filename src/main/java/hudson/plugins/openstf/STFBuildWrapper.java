@@ -22,6 +22,7 @@ import hudson.plugins.android_emulator.sdk.Tool;
 import hudson.plugins.openstf.exception.ApiFailedException;
 import hudson.plugins.openstf.util.Utils;
 import hudson.remoting.Callable;
+import hudson.remoting.VirtualChannel;
 import hudson.tasks.BuildWrapper;
 import hudson.tasks.BuildWrapperDescriptor;
 import hudson.util.ArgumentListBuilder;
@@ -181,7 +182,10 @@ public class STFBuildWrapper extends BuildWrapper {
     if (stfConfig.getUseSpecificKey()) {
       try {
         Callable<Boolean, IOException> task = stfConfig.getAdbKeySettingTask(listener);
-        launcher.getChannel().call(task);
+        VirtualChannel channel = launcher.getChannel();
+        if (channel != null) {
+          channel.call(task);
+        }
       } catch (IOException ex) {
         log(logger, Messages.CANNOT_CREATE_ADBKEY_FILE());
         build.setResult(Result.NOT_BUILT);

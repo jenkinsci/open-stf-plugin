@@ -69,9 +69,9 @@ public class Utils {
       vars.putAll(buildVars);
     }
 
-    for (Iterator<String> fi = filter.keySet().iterator(); fi.hasNext(); ) {
-      String key = fi.next();
-      String value = filter.get(key).toString();
+    for (Map.Entry<String, String> entry: filter.entrySet()) {
+      String key = entry.getKey();
+      String value = entry.getValue();
 
       String result = Util.fixEmptyAndTrim(value);
       if (result != null) {
@@ -181,9 +181,9 @@ public class Utils {
     }
 
     if (filter != null) {
-      for (Iterator<String> fi = filter.keySet().iterator(); fi.hasNext(); ) {
-        String key = fi.next();
-        String value = filter.get(key).toString();
+      for (Map.Entry<String, String> entry: filter.entrySet()) {
+        String key = entry.getKey();
+        String value = entry.getValue();
 
         if (!value.equals("any")) {
           for (Iterator<DeviceListResponseDevices> di = deviceList.listIterator();
@@ -341,9 +341,9 @@ public class Utils {
    * @return Whether the Regex value looks valid or not.
   **/
   public static boolean validateDeviceFilter(Map<String, String> filter) {
-    for (Iterator<String> fi = filter.keySet().iterator(); fi.hasNext(); ) {
-      String key = fi.next();
-      String value = filter.get(key).toString();
+    for (Map.Entry<String, String> entry: filter.entrySet()) {
+      String key = entry.getKey();
+      String value = entry.getValue();
 
       if (value.matches(Constants.REGEX_ESCAPED_REGEX_VALUE)) {
         if (!validateRegexValue(value)) {
