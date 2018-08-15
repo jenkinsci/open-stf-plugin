@@ -24,7 +24,9 @@ Open STF [verion 2.0](https://github.com/openstf/stf) or later.
 ## Release History
 
 * 1.0.9
-  * ReFix for JEP-200 (Incompatible change!)
+
+  * ReFix for compatibility with JEP-200 (Incompatible change!)
+
 * 1.0.8
 
   * Fix for compatibility with JEP-200 - Stop trying to serialize deviceCondition.
