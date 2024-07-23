@@ -39,7 +39,7 @@
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>android-emulator</artifactId>
-      <version>3.0</version>
+      <version>592.vb_b_6d427f1923</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
