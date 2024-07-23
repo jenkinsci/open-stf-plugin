@@ -12,9 +12,11 @@ import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.List;
 
+@SuppressFBWarnings(value = "EQ_DOESNT_OVERRIDE_EQUALS", justification = "Intentional")
 public class STFDeviceConditionAxis extends Axis {
 
   public String type;
