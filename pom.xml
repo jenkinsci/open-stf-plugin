@@ -160,7 +160,7 @@
   </build>
 
   <scm>
-    <connection>scm:git:git://github.com/jenkinsci/open-stf-plugin.git</connection>
+    <connection>scm:git:https://github.com/jenkinsci/open-stf-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/open-stf-plugin.git</developerConnection>
     <url>https://github.com/jenkinsci/open-stf-plugin</url>
     <tag>HEAD</tag>
