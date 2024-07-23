@@ -310,20 +310,16 @@
 
     <repositories>
         <repository>
-            <id>github-maven</id>
-            <url>https://raw.github.com/justice3120/stf-java-client/branch-ver1.0.6/</url>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </snapshots>
-        </repository>
-        <repository>
             <id>repo.jenkins-ci.org</id>
             <url>http://repo.jenkins-ci.org/public/</url>
         </repository>
         <repository>
-            <id>gluu</id>
-            <url>https://ox.gluu.org/maven/</url>
+            <id>github-maven</id>
+            <url>https://raw.githubusercontent.com/justice3120/stf-java-client/branch-ver1.0.6</url>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
         </repository>
     </repositories>
 
