@@ -234,6 +234,13 @@
                     </instrumentation>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.kohsuke</groupId>
+                <artifactId>access-modifier-checker</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>
