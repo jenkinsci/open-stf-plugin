@@ -18,6 +18,7 @@ import io.swagger.client.api.UserApi;
 import io.swagger.client.model.AddUserDevicePayload;
 import io.swagger.client.model.DeviceListResponseDevices;
 import net.sf.json.JSONObject;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
@@ -88,6 +89,7 @@ public class Utils {
    * If that fails, get the JVM Default Charset.
    * @return detected charset.
    */
+  @SuppressFBWarnings(value = "DCN_NULLPOINTER_EXCEPTION", justification = "Handled case")
   public static Charset getDefaultCharset() {
     try {
       return Computer.currentComputer().getDefaultCharset();
